@@ -7,6 +7,13 @@ import os
 flip_delay_ms = 3000
 BACKGROUND_COLOR = "#BFDFFF"
 
+# ---------- STUDY SESSION STATE ----------
+STUDY_RANGE = None            # None or (start_1based, end_1based)
+TRAVERSE_MODE = "random"      # "random" | "linear"
+ACTIVE_LIST = []              # derived from current view + range
+cursor = 0                    # index into ACTIVE_LIST
+
+
 # ---------- PATHS ----------
 base_dir = os.path.dirname(__file__)
 src_csv_path   = os.path.join(base_dir, 'spanish_popular_words-to_english.csv')
@@ -80,22 +87,17 @@ def _save_favorites():
     os.replace(tmp, favorites_path)
 
 # ---------- INDEX/WORD STATE ----------
-def random_index():
-    pool = _active_pool()
-    return random.randint(0, len(pool) - 1) if pool else 0
 
 if not _active_pool():
     messagebox.showinfo("Done", "No words available to study.")
     raise SystemExit
 
-idx = random_index()
-def _rebind_from_idx():
+def _rebind_from_cursor():
     global wd, eng_wd
-    pool = _active_pool()
-    wd = pool[idx]["word"]
-    eng_wd = pool[idx]["English Word Translation"]
+    current = ACTIVE_LIST[cursor]
+    wd = current["word"]
+    eng_wd = current["English Word Translation"]
 
-_rebind_from_idx()
 
 # ---------- RENDER ----------
 def _show_front(gui: MyGUI):
@@ -136,17 +138,18 @@ def _show_back(gui: MyGUI):
 
 # ---------- VIEW SWITCH ----------
 def _switch_view(gui: MyGUI, mode: str):
-    global active_mode, idx
+    global active_mode, cursor
     active_mode = mode
     gui.set_view_tick(active_mode)
-    pool = _active_pool()
-    if not pool:
-        messagebox.showinfo("Empty", "No words in this view.")
-        gui.cancel_flip()
+
+    _rebuild_active_list(gui)
+    if not ACTIVE_LIST:
         return
-    idx = random_index()
-    _rebind_from_idx()
+
+    cursor = 0  # start at first in derived list
+    _rebind_from_cursor()
     _show_front(gui)
+
 
 def view_to_learn(gui: MyGUI):   _switch_view(gui, MODE_TO_LEARN)
 def view_learned(gui: MyGUI):    _switch_view(gui, MODE_LEARNED)
@@ -170,78 +173,92 @@ def _pick_new_index(exclude_idx=None):
     return new_idx
 
 def next_word(gui: MyGUI):
-    global idx
-    pool = _active_pool()
-    if not pool:
+    global cursor
+    if not ACTIVE_LIST:
         messagebox.showinfo("Done", "No words in this view.")
         gui.cancel_flip()
         return
-    idx = _pick_new_index(exclude_idx=idx)
-    _rebind_from_idx()
+
+    if TRAVERSE_MODE == "linear":
+        cursor = (cursor + 1) % len(ACTIVE_LIST)
+    else:  # random
+        if len(ACTIVE_LIST) == 1:
+            pass
+        else:
+            new_idx = random.randrange(len(ACTIVE_LIST))
+            while new_idx == cursor:
+                new_idx = random.randrange(len(ACTIVE_LIST))
+            cursor = new_idx
+
+    _rebind_from_cursor()
     _show_front(gui)
 
 def mastered_word(gui: MyGUI):
-    """Only in Words-to-Learn view: move word to learned + remove from to-learn."""
-    global idx
+    global cursor
     if active_mode != MODE_TO_LEARN:
         messagebox.showinfo("Not available", "‘Mastered’ only works in the Words to Learn view.")
         return
-    if not TO_LEARN:
+    if not ACTIVE_LIST:
         messagebox.showinfo("Done", "No words to learn.")
         gui.cancel_flip()
         return
 
-    mastered = TO_LEARN.pop(idx)
-    _save_to_learn()
-    _save_learned_append([mastered])
-    LEARNED.append(mastered)
+    current = ACTIVE_LIST[cursor]
+    key = current["word"]
 
-    if not TO_LEARN:
+    # remove from TO_LEARN by word
+    removed = [row for row in TO_LEARN if row.get("word") == key]
+    if not removed:
+        # nothing to do; rebuild and continue
+        _rebuild_active_list(gui);
+        if not ACTIVE_LIST: return
+        _rebind_from_cursor(); _show_front(gui);
+        return
+
+    TO_LEARN[:] = [row for row in TO_LEARN if row.get("word") != key]
+    _save_to_learn()
+    _save_learned_append(removed)
+    LEARNED.extend(removed)
+
+    # rebuild derived list and move on
+    _rebuild_active_list(gui)
+    if not ACTIVE_LIST:
         messagebox.showinfo("Congratulations!", "You've mastered all words!")
         gui.show_congrats()
         gui.cancel_flip()
         return
 
-    idx = idx % len(TO_LEARN)
-    _rebind_from_idx()
+    if TRAVERSE_MODE == "linear" and cursor >= len(ACTIVE_LIST):
+        cursor = 0
+    _rebind_from_cursor()
     _show_front(gui)
 
 def favorite_toggle(gui: MyGUI):
-    """
-    Add to favorites from any view.
-    If currently in Favorites view, pressing favorite toggles removal.
-    """
-    global idx
-    pool = _active_pool()
-    if not pool:
+    global cursor
+    if not ACTIVE_LIST:
         messagebox.showinfo("Empty", "No words in this view.")
         return
 
-    current = pool[idx]
+    current = ACTIVE_LIST[cursor]
     key = current["word"]
 
-    def _in_favorites(w):
-        return any(row.get("word") == w for row in FAVORITES)
+    def _in_favorites(w): return any(row.get("word") == w for row in FAVORITES)
 
     if active_mode == MODE_FAVORITES:
-        # Toggle removal only while viewing Favorites
         if _in_favorites(key):
             FAVORITES[:] = [row for row in FAVORITES if row.get("word") != key]
             _save_favorites()
-            if not FAVORITES:
+            _rebuild_active_list(gui)
+            if not ACTIVE_LIST:
                 messagebox.showinfo("Favorites", "No favorites left.")
                 return
-            idx = idx % len(FAVORITES)
-            _rebind_from_idx()
-            _show_front(gui)
+            cursor = cursor % len(ACTIVE_LIST)
+            _rebind_from_cursor(); _show_front(gui)
         else:
-            FAVORITES.append(current)
-            _save_favorites()
-            _show_front(gui)
+            FAVORITES.append(current); _save_favorites(); _show_front(gui)
     else:
         if not _in_favorites(key):
-            FAVORITES.append(current)
-            _save_favorites()
+            FAVORITES.append(current); _save_favorites()
             messagebox.showinfo("Favorites", f"Added ‘{key}’ to favorites.")
         else:
             messagebox.showinfo("Favorites", f"‘{key}’ is already in favorites.")
@@ -259,9 +276,91 @@ def set_direction_e2s(gui: MyGUI):
     _show_front(gui)
 
 
+def _rebuild_active_list(gui: MyGUI | None = None):
+    """Recompute ACTIVE_LIST from current view and STUDY_RANGE."""
+    global ACTIVE_LIST, cursor
+    base = _active_pool()
+
+    if STUDY_RANGE is None:
+        ACTIVE_LIST = list(base)  # keep order
+    else:
+        start, end = STUDY_RANGE
+        # clamp to master length
+        end = min(end, len(ALL_WORDS))
+        start = max(1, min(start, end))
+        allowed = {row["word"] for row in ALL_WORDS[start-1:end]}
+        ACTIVE_LIST = [row for row in base if row.get("word") in allowed]
+
+    if not ACTIVE_LIST:
+        if gui:
+            gui.cancel_flip()
+        messagebox.showinfo("Empty", "No words in this range for this view.")
+        return
+
+    # keep cursor in-bounds
+    cursor = cursor % len(ACTIVE_LIST)
+
+# Build initial ACTIVE_LIST from default view + no range
+
+_rebuild_active_list(None)
+if not ACTIVE_LIST:
+    messagebox.showinfo("Done", "No words available to study.")
+    raise SystemExit
+_rebind_from_cursor()
+
+def set_traverse_random(gui: MyGUI):
+    global TRAVERSE_MODE
+    TRAVERSE_MODE = "random"
+    gui.set_traverse_tick(TRAVERSE_MODE)
+
+def set_traverse_linear(gui: MyGUI):
+    global TRAVERSE_MODE
+    TRAVERSE_MODE = "linear"
+    gui.set_traverse_tick(TRAVERSE_MODE)
+
+def set_study_range(gui: MyGUI):
+    global STUDY_RANGE, cursor
+    s = simpledialog.askstring("Study Range", "Enter range like 1-100:")
+    if not s: return
+    try:
+        parts = s.replace(" ", "").split("-")
+        if len(parts) != 2: raise ValueError
+        start = int(parts[0]); end = int(parts[1])
+        if start < 1 or end < start: raise ValueError
+    except ValueError:
+        messagebox.showerror("Invalid", "Please enter a valid range like 1-100.")
+        return
+    STUDY_RANGE = (start, end)
+    _rebuild_active_list(gui)
+    if ACTIVE_LIST:
+        cursor = 0
+        _rebind_from_cursor(); _show_front(gui)
+
+def clear_study_range(gui: MyGUI):
+    global STUDY_RANGE, cursor
+    STUDY_RANGE = None
+    _rebuild_active_list(gui)
+    if ACTIVE_LIST:
+        cursor = 0
+        _rebind_from_cursor(); _show_front(gui)
+
+def reset_study_list(gui: MyGUI):
+    global TO_LEARN, LEARNED, cursor
+    if messagebox.askyesno("Reset Study List", "Reload working list from Master and clear Known?\n(Favorites are NOT changed.)"):
+        TO_LEARN = ALL_WORDS.copy()
+        _save_to_learn()
+        # clear learned file on disk
+        open(learned_path, "w").close()
+        LEARNED.clear()
+        _rebuild_active_list(gui)
+        if ACTIVE_LIST:
+            cursor = 0
+            _rebind_from_cursor(); _show_front(gui)
+
+
 # ---------- APP ----------
 app = MyGUI(
-    initial_word=_active_pool()[idx]["word"],
+    initial_word=ALL_WORDS[0]["word"],  # any text; we'll immediately rebind from ACTIVE_LIST
     on_flip=lambda: flip_card(app),
     on_next=lambda: next_word(app),
     on_mastered=lambda: mastered_word(app),
@@ -270,13 +369,22 @@ app = MyGUI(
     on_view_learned=lambda: view_learned(app),
     on_view_favorites=lambda: view_favorites(app),
     on_set_timer_value=lambda sec: set_flip_delay_value(app, sec),
-    on_direction_s2e=lambda: set_direction_s2e(app),   # <-- add
-    on_direction_e2s=lambda: set_direction_e2s(app)    # <-- add
+    on_direction_s2e=lambda: set_direction_s2e(app),
+    on_direction_e2s=lambda: set_direction_e2s(app),
+    # NEW:
+    on_traverse_random=lambda: set_traverse_random(app),
+    on_traverse_linear=lambda: set_traverse_linear(app),
+    on_set_range=lambda: set_study_range(app),
+    on_clear_range=lambda: clear_study_range(app),
+    on_reset_study=lambda: reset_study_list(app),
 )
 
-# Initialize menu ticks to match current defaults
+# Initialize menu ticks to match defaults
 app.set_view_tick(active_mode)
 app.set_direction_tick(active_direction)
+app.set_traverse_tick(TRAVERSE_MODE)
 
+# First render from ACTIVE_LIST
+_rebind_from_cursor()
 app.schedule_flip(flip_delay_ms, lambda: flip_card(app))
 app.run()

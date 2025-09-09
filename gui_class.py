@@ -27,8 +27,14 @@ class MyGUI:
             on_view_learned,
             on_view_favorites,
             on_set_timer_value,
-            on_direction_s2e,  # NEW
-            on_direction_e2s,  # NEW
+            on_direction_s2e,
+            on_direction_e2s,
+            # --- NEW: Study controls ---
+            on_traverse_random,
+            on_traverse_linear,
+            on_set_range,
+            on_clear_range,
+            on_reset_study,
     ):
 
         self.main_window = tk.Tk()
@@ -119,6 +125,7 @@ class MyGUI:
         # Track ticks for View & Direction menus
         self.view_var = tk.StringVar(value="to_learn")  # matches default in flashcards.py
         self.direction_var = tk.StringVar(value="S2E")  # Spanish→English default
+        self.traverse_var = tk.StringVar(value="random")
 
         view_menu = tk.Menu(menubar, tearoff=0)
         view_menu.add_radiobutton(label="Words to Learn", variable=self.view_var, value="to_learn", command=on_view_to_learn)
@@ -144,6 +151,33 @@ class MyGUI:
         direction_menu.add_radiobutton(label="English → Spanish (Front: English)", variable=self.direction_var, value="E2S", command=on_direction_e2s)
         menubar.add_cascade(label="Direction", menu=direction_menu)
 
+        # --- Study menu ---
+        study_menu = tk.Menu(menubar, tearoff=0)
+
+        # Traversal sub-menu with ticks
+        traverse_menu = tk.Menu(study_menu, tearoff=0)
+        traverse_menu.add_radiobutton(
+            label="Random order", variable=self.traverse_var, value="random",
+            command=on_traverse_random
+        )
+        traverse_menu.add_radiobutton(
+            label="In order (linear)", variable=self.traverse_var, value="linear",
+            command=on_traverse_linear
+        )
+        study_menu.add_cascade(label="Traversal", menu=traverse_menu)
+
+        # Range actions
+        study_menu.add_command(label="Set Range…", command=on_set_range)
+        study_menu.add_command(label="Clear Range", command=on_clear_range)
+
+        # Reset (working list from Master, clear Known; keep Favorites)
+        study_menu.add_separator()
+        study_menu.add_command(label="Reset Study List…", command=on_reset_study)
+
+        menubar.add_cascade(label="Study", menu=study_menu)
+
+
+
         self.main_window.config(menu=menubar)
 
 
@@ -164,6 +198,13 @@ class MyGUI:
             self.flip_timer_id = self.main_window.after(ms, fn)
 
         self.schedule_flip = _schedule
+
+    def set_traverse_tick(self, mode: str):
+        # mode in {"random","linear"}
+        try:
+            self.traverse_var.set(mode)
+        except Exception:
+            pass
 
     def set_view_tick(self, mode: str):
         self.view_var.set(mode)
