@@ -115,10 +115,15 @@ class MyGUI:
 
         # Menu bar
         menubar = tk.Menu(self.main_window)
+
+        # Track ticks for View & Direction menus
+        self.view_var = tk.StringVar(value="to_learn")  # matches default in flashcards.py
+        self.direction_var = tk.StringVar(value="S2E")  # Spanish→English default
+
         view_menu = tk.Menu(menubar, tearoff=0)
-        view_menu.add_command(label="Words to Learn", command=on_view_to_learn)
-        view_menu.add_command(label="Known (Learned)", command=on_view_learned)
-        view_menu.add_command(label="Favorites", command=on_view_favorites)
+        view_menu.add_radiobutton(label="Words to Learn", variable=self.view_var, value="to_learn", command=on_view_to_learn)
+        view_menu.add_radiobutton(label="Known (Learned)", variable=self.view_var, value="learned", command=on_view_learned)
+        view_menu.add_radiobutton(label="Favorites", variable=self.view_var, value="favorites", command=on_view_favorites)
         menubar.add_cascade(label="View", menu=view_menu)
 
         # --- Timer menu with radio buttons ---
@@ -135,11 +140,12 @@ class MyGUI:
 
         # --- Direction menu ---
         direction_menu = tk.Menu(menubar, tearoff=0)
-        direction_menu.add_command(label="Spanish → English (Front: Spanish)", command=on_direction_s2e)
-        direction_menu.add_command(label="English → Spanish (Front: English)", command=on_direction_e2s)
+        direction_menu.add_radiobutton(label="Spanish → English (Front: Spanish)", variable=self.direction_var, value="S2E", command=on_direction_s2e)
+        direction_menu.add_radiobutton(label="English → Spanish (Front: English)", variable=self.direction_var, value="E2S", command=on_direction_e2s)
         menubar.add_cascade(label="Direction", menu=direction_menu)
 
         self.main_window.config(menu=menubar)
+
 
         # ---- Timer helpers ----
         def _safe_cancel():
@@ -158,6 +164,12 @@ class MyGUI:
             self.flip_timer_id = self.main_window.after(ms, fn)
 
         self.schedule_flip = _schedule
+
+    def set_view_tick(self, mode: str):
+        self.view_var.set(mode)
+
+    def set_direction_tick(self, direction: str):
+        self.direction_var.set(direction)
 
     def show_congrats(self):
         try:

@@ -138,6 +138,7 @@ def _show_back(gui: MyGUI):
 def _switch_view(gui: MyGUI, mode: str):
     global active_mode, idx
     active_mode = mode
+    gui.set_view_tick(active_mode)
     pool = _active_pool()
     if not pool:
         messagebox.showinfo("Empty", "No words in this view.")
@@ -248,11 +249,13 @@ def favorite_toggle(gui: MyGUI):
 def set_direction_s2e(gui: MyGUI):
     global active_direction
     active_direction = DIRECTION_SPANISH_TO_ENGLISH
+    gui.set_direction_tick(active_direction)
     _show_front(gui)
 
 def set_direction_e2s(gui: MyGUI):
     global active_direction
     active_direction = DIRECTION_ENGLISH_TO_SPANISH
+    gui.set_direction_tick(active_direction)
     _show_front(gui)
 
 
@@ -270,6 +273,10 @@ app = MyGUI(
     on_direction_s2e=lambda: set_direction_s2e(app),   # <-- add
     on_direction_e2s=lambda: set_direction_e2s(app)    # <-- add
 )
+
+# Initialize menu ticks to match current defaults
+app.set_view_tick(active_mode)
+app.set_direction_tick(active_direction)
 
 app.schedule_flip(flip_delay_ms, lambda: flip_card(app))
 app.run()
