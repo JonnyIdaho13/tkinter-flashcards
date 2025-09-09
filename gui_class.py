@@ -91,7 +91,7 @@ class MyGUI:
 
         # --- Labels that pop those menus (thinner than Menubuttons) ---
         lbl_view = _mk_menu_label(topbar, "View", view_menu, MENU_FONT)
-        lbl_timer = _mk_menu_label(topbar, "Auto-Flip Timer", timer_menu, MENU_FONT)
+        lbl_timer = _mk_menu_label(topbar, "Auto-Flip-Timer", timer_menu, MENU_FONT)
         lbl_direction = _mk_menu_label(topbar, "Direction", direction_menu, MENU_FONT)
         lbl_study = _mk_menu_label(topbar, "Study", study_menu, MENU_FONT)
 
