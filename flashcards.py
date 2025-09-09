@@ -38,6 +38,11 @@ MODE_TO_LEARN  = "to_learn"
 MODE_LEARNED   = "learned"
 MODE_FAVORITES = "favorites"
 active_mode = MODE_TO_LEARN
+# ----STUDY DIRECTION --------
+# ---------- DIRECTION (study direction) ----------
+DIRECTION_SPANISH_TO_ENGLISH = "S2E"   # Front: Spanish, Back: English (current default)
+DIRECTION_ENGLISH_TO_SPANISH = "E2S"   # Front: English, Back: Spanish
+active_direction = DIRECTION_SPANISH_TO_ENGLISH
 
 def set_flip_delay_value(gui: MyGUI, seconds: int):
     global flip_delay_ms
@@ -93,19 +98,41 @@ def _rebind_from_idx():
 _rebind_from_idx()
 
 # ---------- RENDER ----------
-def _show_spanish(gui: MyGUI):
+def _show_front(gui: MyGUI):
+    """
+    Show the 'front' of the card depending on direction:
+      - S2E: Spanish on front
+      - E2S: English on front
+    """
     gui.canvas.itemconfig("card_front", image=gui.card_front)
-    gui.canvas.itemconfig('language', fill='black', text="Spanish")
-    gui.canvas.itemconfig('spanish_word', fill='black', text=wd)
-    gui.is_english = False
+    if active_direction == DIRECTION_SPANISH_TO_ENGLISH:
+        gui.canvas.itemconfig('language', fill='black', text="Spanish")
+        gui.canvas.itemconfig('spanish_word', fill='black', text=wd)
+    else:  # DIRECTION_ENGLISH_TO_SPANISH
+        gui.canvas.itemconfig('language', fill='black', text="English")
+        gui.canvas.itemconfig('spanish_word', fill='black', text=eng_wd)
+
+    gui.is_english = False  # "False" means we're on the front side
     gui.cancel_flip()
     gui.schedule_flip(flip_delay_ms, lambda: flip_card(gui))
 
-def _show_english(gui: MyGUI):
+
+def _show_back(gui: MyGUI):
+    """
+    Show the 'back' of the card depending on direction:
+      - S2E: English on back
+      - E2S: Spanish on back
+    """
     gui.canvas.itemconfig("card_front", image=gui.card_back)
-    gui.canvas.itemconfig("language", fill="white", text="English")
-    gui.canvas.itemconfig("spanish_word", fill="white", text=eng_wd)
-    gui.is_english = True
+    if active_direction == DIRECTION_SPANISH_TO_ENGLISH:
+        gui.canvas.itemconfig("language", fill="white", text="English")
+        gui.canvas.itemconfig("spanish_word", fill="white", text=eng_wd)
+    else:  # DIRECTION_ENGLISH_TO_SPANISH
+        gui.canvas.itemconfig("language", fill="white", text="Spanish")
+        gui.canvas.itemconfig("spanish_word", fill="white", text=wd)
+
+    gui.is_english = True  # "True" means we're on the back side
+
 
 # ---------- VIEW SWITCH ----------
 def _switch_view(gui: MyGUI, mode: str):
@@ -118,7 +145,7 @@ def _switch_view(gui: MyGUI, mode: str):
         return
     idx = random_index()
     _rebind_from_idx()
-    _show_spanish(gui)
+    _show_front(gui)
 
 def view_to_learn(gui: MyGUI):   _switch_view(gui, MODE_TO_LEARN)
 def view_learned(gui: MyGUI):    _switch_view(gui, MODE_LEARNED)
@@ -127,9 +154,10 @@ def view_favorites(gui: MyGUI):  _switch_view(gui, MODE_FAVORITES)
 # ---------- ACTIONS ----------
 def flip_card(gui: MyGUI):
     if not hasattr(gui, 'is_english'):
-        gui.is_english = False
+        gui.is_english = False  # start on front
     gui.cancel_flip()
-    _show_spanish(gui) if gui.is_english else _show_english(gui)
+    _show_front(gui) if gui.is_english else _show_back(gui)
+
 
 def _pick_new_index(exclude_idx=None):
     pool = _active_pool()
@@ -149,7 +177,7 @@ def next_word(gui: MyGUI):
         return
     idx = _pick_new_index(exclude_idx=idx)
     _rebind_from_idx()
-    _show_spanish(gui)
+    _show_front(gui)
 
 def mastered_word(gui: MyGUI):
     """Only in Words-to-Learn view: move word to learned + remove from to-learn."""
@@ -175,7 +203,7 @@ def mastered_word(gui: MyGUI):
 
     idx = idx % len(TO_LEARN)
     _rebind_from_idx()
-    _show_spanish(gui)
+    _show_front(gui)
 
 def favorite_toggle(gui: MyGUI):
     """
@@ -204,11 +232,11 @@ def favorite_toggle(gui: MyGUI):
                 return
             idx = idx % len(FAVORITES)
             _rebind_from_idx()
-            _show_spanish(gui)
+            _show_front(gui)
         else:
             FAVORITES.append(current)
             _save_favorites()
-            _show_spanish(gui)
+            _show_front(gui)
     else:
         if not _in_favorites(key):
             FAVORITES.append(current)
@@ -216,6 +244,17 @@ def favorite_toggle(gui: MyGUI):
             messagebox.showinfo("Favorites", f"Added ‘{key}’ to favorites.")
         else:
             messagebox.showinfo("Favorites", f"‘{key}’ is already in favorites.")
+
+def set_direction_s2e(gui: MyGUI):
+    global active_direction
+    active_direction = DIRECTION_SPANISH_TO_ENGLISH
+    _show_front(gui)
+
+def set_direction_e2s(gui: MyGUI):
+    global active_direction
+    active_direction = DIRECTION_ENGLISH_TO_SPANISH
+    _show_front(gui)
+
 
 # ---------- APP ----------
 app = MyGUI(
@@ -227,7 +266,9 @@ app = MyGUI(
     on_view_to_learn=lambda: view_to_learn(app),
     on_view_learned=lambda: view_learned(app),
     on_view_favorites=lambda: view_favorites(app),
-    on_set_timer_value=lambda sec: set_flip_delay_value(app, sec)
+    on_set_timer_value=lambda sec: set_flip_delay_value(app, sec),
+    on_direction_s2e=lambda: set_direction_s2e(app),   # <-- add
+    on_direction_e2s=lambda: set_direction_e2s(app)    # <-- add
 )
 
 app.schedule_flip(flip_delay_ms, lambda: flip_card(app))

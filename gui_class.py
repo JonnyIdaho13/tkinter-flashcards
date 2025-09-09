@@ -15,18 +15,22 @@ class MyGUI:
     Menubar:
       View -> Words to Learn | Known (Learned) | Favorites
     """
+
     def __init__(
-        self,
-        initial_word: str,
-        on_flip,
-        on_next,
-        on_mastered,
-        on_favorite,
-        on_view_to_learn,
-        on_view_learned,
-        on_view_favorites,
-        on_set_timer_value,
+            self,
+            initial_word: str,
+            on_flip,
+            on_next,
+            on_mastered,
+            on_favorite,
+            on_view_to_learn,
+            on_view_learned,
+            on_view_favorites,
+            on_set_timer_value,
+            on_direction_s2e,  # NEW
+            on_direction_e2s,  # NEW
     ):
+
         self.main_window = tk.Tk()
         self.main_window.title("Flashcards")
         self.main_window.geometry("900x720")
@@ -63,7 +67,7 @@ class MyGUI:
             image=self.wrong_mark,
             text="Learning",
             compound="top",  # image above, text below
-            font=("Arial", 10),
+            font=("Arial", 10, "bold"),
             highlightthickness=0,
             command=on_flip
         )
@@ -74,7 +78,7 @@ class MyGUI:
             image=self.next_img,
             text="Next",
             compound="top",
-            font=("Arial", 10),
+            font=("Arial", 10, "bold"),
             highlightthickness=0,
             command=on_next
         )
@@ -85,7 +89,7 @@ class MyGUI:
             image=self.right_mark,
             text="Known",
             compound="top",
-            font=("Arial", 10),
+            font=("Arial", 10, "bold"),
             highlightthickness=0,
             command=on_mastered
         )
@@ -96,7 +100,7 @@ class MyGUI:
             image=self.heart_img,
             text="Favorite",
             compound="top",
-            font=("Arial", 10),
+            font=("Arial", 10, "bold"),
             highlightthickness=0,
             command=on_favorite
         )
@@ -127,7 +131,13 @@ class MyGUI:
                 value=sec,
                 command=lambda s=sec: on_set_timer_value(s)
             )
-        menubar.add_cascade(label="Timer", menu=timer_menu)
+        menubar.add_cascade(label="Auto-Flip Timer", menu=timer_menu)
+
+        # --- Direction menu ---
+        direction_menu = tk.Menu(menubar, tearoff=0)
+        direction_menu.add_command(label="Spanish → English (Front: Spanish)", command=on_direction_s2e)
+        direction_menu.add_command(label="English → Spanish (Front: English)", command=on_direction_e2s)
+        menubar.add_cascade(label="Direction", menu=direction_menu)
 
         self.main_window.config(menu=menubar)
 
